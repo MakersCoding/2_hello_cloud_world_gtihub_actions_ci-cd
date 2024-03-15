@@ -1,53 +1,34 @@
-# syntax=docker/dockerfile:1
 
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Dockerfile reference guide at
-# https://docs.docker.com/go/dockerfile-reference/
-
-# Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
-
-FROM python:3.11.2-slim as base
-
-# Prevents Python from writing pyc files.
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Keeps Python from buffering stdout and stderr to avoid situations where
-# the application crashes without emitting any logs due to buffering.
-ENV PYTHONUNBUFFERED=1
-
+# https://hub.docker.com/_/python
+# Improved! :)
+FROM python:3.12-alpine
+# Set the working directory inside the container to /app.
 WORKDIR /application
-
-# Create a non-privileged user that the app will run under.
-# See https://docs.docker.com/go/dockerfile-user-best-practices/
-ARG UID=10001
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    appuser
-
-# Download dependencies as a separate step to take advantage of Docker's caching.
-# Leverage a cache mount to /root/.cache/pip to speed up subsequent builds.
-# Leverage a bind mount to requirements.txt to avoid having to copy them into
-# into this layer.
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install -r requirements.txt
-
-# Switch to the non-privileged user to run the application.
-USER appuser
-
-# Copy the source code into the container.
+# Set environment variables.
+# 1. Forces Python’s stdout and stderr streams to be unbuffered.
+# 2. Sets the Flask application to run.
+# 3. Sets the default host for the Flask app.
+ENV PYTHONUNBUFFERED=1 \
+    FLASK_APP=application.py \
+    FLASK_RUN_HOST=0.0.0.0
+# Install gcc and other dependencies
+RUN apk update \
+    && apk add --no-cache gcc musl-dev linux-headers \
+    && rm -rf /var/cache/apk/*
+# Install Python dependencies.
+# Copying just the requirements.txt first improves Docker cache utilization,
+# since the requirements rarely change.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+# Copy the rest of the application's code.
 COPY . .
-
-# Expose the port that the application listens on.
+# Inform Docker that the container is listening on the specified port at runtime.
 EXPOSE 5000
-
-# Set the FLASK_APP environment variable.
-ENV FLASK_APP=application.py
-
-# Run the application.
-CMD ["python3", "-m", "flask", "run", "--host=0.0.0.0"]
+# Use an unprivileged user to run the app for security reasons.
+RUN adduser -D myuser
+USER myuser
+# Environment: 'production' for production settings,
+# or 'development' to enable debug mode.
+ENV FLASK_ENV=development
+# Command to run the application.
+CMD ["flask", "run"]

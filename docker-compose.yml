@@ -1,0 +1,10 @@
+services:
+  web:
+    container_name: quote-frontend
+    build: .
+    #image: pauloclouddev/random-emoji-app:1.1 # Add this line for pushing with docker compose
+    ports:
+      - '80:5000' # for beanstalk deployment
+      # - "8000:5000"
+    environment:
+      - FLASK_ENV=development
